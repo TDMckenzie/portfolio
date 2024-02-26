@@ -1,0 +1,270 @@
+---
+title: "502 Project RMD"
+author: "Travis McKenzie"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Add packages and data
+
+```{r}
+library(tidyverse)
+library(ggrepel)
+library(colorspace)
+
+nbaDS=read_csv("C:\\Users\\mcken\\OneDrive\\Documents\\Willamette\\Data 502\\Project\\nba_all.csv")
+teamDS=read_csv("C:\\Users\\mcken\\OneDrive\\Documents\\Willamette\\Data 502\\Project\\Data Sources\\Various\\Team Summaries.csv")
+
+##Focus Variables
+teamFocus=c("POR", "GSW")
+seasonFocus=c(2015,2017,2018,2022)
+seasonRange=c(2010:2022)
+
+
+##new columns and vectors
+nbaDS=nbaDS%>%
+  mutate(playerSeason=paste(player, sep=" ", season))
+teamDS2=teamDS%>%
+    filter(abbreviation %in% teamFocus,
+         season %in% seasonRange)%>%
+  mutate(paired=rep(1:(n()/2),each=2), 
+         season=factor(season))
+
+nbaDS2=nbaDS%>%
+  filter(tm %in% teamFocus,
+         season %in% seasonRange)
+
+nbaDS3=nbaDS2%>%
+  filter(stl>=50,
+         ast>=100,
+         pos %in% c("SG","PG","SF"),
+         season %in% seasonFocus)%>%
+  group_by(player, pos, tm)%>%
+  summarize(
+    averageAssists=mean(ast),
+    averageSteals=mean(stl),
+    averagePoints=mean(pts),
+    averageRebounds=mean(trb),
+  )%>%
+  mutate(
+    cutSteals=cut(averageSteals, breaks=c(49,75,100,120), labels=c("Low: 50-75","Medium: 75-100","High: 100-125")),
+    cutAssists=cut(averageAssists, breaks=c(99,200,300,400,500), labels=c("100-200","200-300","300-400","400-500")),
+    cutRebounds=cut(averageRebounds, breaks=c(0,300,500), labels=c("Low: <300","High>300"))
+  )%>%
+  mutate(playerTeam=paste(player, sep="-", tm))
+
+teamDS4=teamDS %>%
+  filter(season %in% seasonRange, abbreviation %in% teamFocus)%>%
+  select(season, abbreviation, o_rtg, d_rtg)%>%
+  pivot_longer(o_rtg:d_rtg, names_to = "ratingType", values_to = "rating")%>%
+    mutate(
+  ratingType=str_replace_all(ratingType, "o_rtg", "Offensive"),
+  ratingType=str_replace_all(ratingType, "d_rtg", "Defensive"))
+  
+
+
+##Subsets
+porPlayer = nbaDS %>%
+  filter(tm=="POR", season %in% seasonRange)
+gswPlayer = nbaDS %>%
+  filter(tm=="GSW", season %in% seasonRange)
+porTeam = teamDS %>%
+  filter(abbreviation=="POR", season %in% seasonRange)
+gswTeam = teamDS %>%
+  filter(abbreviation=="GSW", season %in% seasonRange)
+gswChampion = teamDS%>%
+  filter(season %in% seasonFocus)
+
+porPlayer3p=porPlayer %>%
+  filter(x3p>=100, x3p_percent>=.3)
+gswPlayer3p=gswPlayer %>%
+  filter(x3p>=100, x3p_percent>=.3)
+porPlayer3pCY=porPlayer3p%>%
+  filter(season %in% seasonFocus)
+gswPlayer3pCY=gswPlayer3p%>%
+  filter(season %in% seasonFocus)
+gswPlayer3pTop=gswPlayer3p%>%
+  filter(x3p>=337)
+porPlayer3pTop=porPlayer3p%>%
+  filter(x3p>=237)
+
+##Warriors Colors - Warriors Blue #1D428A & Golden Yellow #FFC72C
+##Blazers Colors - Red #E03A3E, Black #000000
+
+warBlue="#1D428A"
+warYellow="#FFC72C"
+blazeRed="#E03A3E"
+
+```
+
+##3P Performance
+
+
+```{r, echo=FALSE}
+
+ graph1=nbaDS %>%
+  filter(season %in% seasonRange, x3p>=100, x3p_percent>=.3)%>%
+  ggplot(aes(x3p, x3p_percent, label=playerSeason))+
+  geom_point(color="lightgray", alpha=.3,)+
+  geom_point(data=gswPlayer3p, color=warBlue, shape=17, size=2, aes(x3p, x3p_percent))+
+  geom_point(data=porPlayer3p, color=blazeRed, size=2, aes(x3p, x3p_percent))+
+  labs(title= "3-Point Percent and Volume (2010-2022)",
+       x="Total 3-Pointers", 
+       y="3-Point Percent",
+       subtitle = "3-Point greater than 30% and 100 made (POR in Red, GSW in Blue)"
+       )+
+  scale_y_continuous(labels=scales::percent, n.breaks=3)+
+  theme_minimal()+
+   geom_label_repel(data=gswPlayer3pTop,
+                    segment.size=.3,
+                    #nudge_y=c(.075,.05,.03),
+                    nudge_y=.49-gswPlayer3pTop$x3p_percent,
+                    #nudge_x=c(-45,-5,10),
+                    nudge_x=300-gswPlayer3pTop$x3p,
+                    color=warBlue,
+                    segment.color=warBlue,
+                    segment.curvature=0,
+                    segment.linetype=3
+                    )+
+     geom_label_repel(data=porPlayer3pTop,
+                    segment.size=.3,
+                    #nudge_y=c(-.08,-.07,-.05),
+                    nudge_y=.31-porPlayer3pTop$x3p_percent,
+                    #nudge_x=c(15, 85,100),
+                    nudge_x=250-porPlayer3pTop$x3p,
+                    color=blazeRed,
+                    segment.color=blazeRed,
+                    segment.curvature=0,
+                    segment.linetype=3
+                    )+
+  theme(
+    panel.grid.minor.y = element_blank()
+  )
+
+print(graph1)
+
+##isolate teams/players of focus
+
+```
+
+## Win/Success Comparison
+
+```{r, echo=FALSE}
+
+graph2=teamDS2%>%
+  ggplot(aes(x=season, y=w))+
+  geom_line(aes(group=paired))+
+  geom_point(aes(color=abbreviation, fill=abbreviation), 
+             size=ifelse(c(teamDS2$season %in% seasonFocus & teamDS2$abbreviation=="GSW"), 6, 4), 
+             shape=ifelse(c(teamDS2$season %in% seasonFocus & teamDS2$abbreviation=="GSW"), 18, 20))+
+  scale_fill_manual(values=c(warBlue, blazeRed))+
+  scale_color_manual(values=c(warBlue, blazeRed))+
+  labs(x="Season", 
+       y="Wins",
+       title="Warrior (GSW) and Trail Blazer (POR) Win Comparison",
+       subtitle = "2010 - 2022 Seasons",
+       fill="Team",
+       color="Team",
+       caption="*diamond notes championship"
+       )+
+  annotate(
+    geom="text",label="Stephen Curry (GSW) \n   First Season (2010)", y=22, x=1.5)+
+  annotate(
+    geom="text",label="Damian Lillard (POR) \n   First Season (2013)", y=29, x=4.5)+
+  annotate(
+    geom="rect", xmin=.5, xmax=2.5, ymin=18, ymax=28, alpha=.1, color="black", fill=NA)+
+  annotate(
+    geom="rect", xmin=3.5, xmax=5.5, ymin=25, ymax=35, alpha=.1, color="black", fill=NA)+
+  theme_classic()+
+    theme(
+      legend.position = "bottom",
+    )
+
+print(graph2)
+
+```
+
+
+##Box Plot Analysis of Points
+
+```{r}
+
+graph3=nbaDS%>%
+  filter(season %in% seasonFocus, tm %in% teamFocus)%>%
+  ggplot()+
+  geom_boxplot(aes(pts, color=tm, fill=tm), outlier.shape = NA)+
+  facet_grid(pos~.)+
+  scale_color_manual(values=c(warYellow, "black"), guide=NULL)+
+  scale_fill_manual(values=c(warBlue, blazeRed), labels=c("GSW", "POR"), name="Team")+
+  labs(title="Comparison of Portland & Golden State", subtitle="GSW Championship Years (2014, 2016, 2017, 2021)", x="Points")+
+  theme_minimal()+
+  theme(
+    axis.text.y = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank()
+  )
+
+print(graph3)
+
+```
+
+
+##Small Ball Graph
+
+```{r, echo=FALSE}
+
+#order of importance (points, assists, steals, rebounds)
+
+graph4=nbaDS3%>%
+  ggplot()+
+  geom_point(aes(y=reorder(playerTeam, averageAssists), x=averageAssists,size=averageRebounds, color=averageSteals))+
+  facet_grid(pos~., scales="free", space="free")+
+  scale_color_continuous_sequential("Viridis")+
+  labs(
+    y="Player & Position",
+    x="Average Assists",
+    color="Average Steals \nby color",
+    size="Average Rebounds \nby size",
+    title="Archetypes of Small Ball (GSW v. POR)",
+    subtitle="Top performers within the Point Guard (PG), \nSmall Forward (SF) and Shooting Guard (SG) positions")+
+  theme_light()+
+  theme(
+    legend.position = "bottom",
+    panel.grid.minor.x = element_blank())
+
+
+print(graph4)
+
+```
+
+
+```{r}
+graph5=teamDS4 %>%
+  ggplot(aes(x = season, y = rating, color = abbreviation,label=abbreviation)) +
+  geom_line(size = 1) +
+  scale_color_manual(values = c(warBlue,blazeRed)) +
+  scale_x_continuous(limits=c(2010, 2023), breaks=c(2010:2022))+
+  facet_grid(ratingType~.,scales="free_y") +
+  labs(title = "Offensive and Defensive Ratings (2010-2022)",
+       x = "Season", y = "Rating", 
+       color="Team") +
+  theme_minimal()+
+  theme(panel.grid.minor.x=element_blank(),
+        panel.grid.minor.y=element_blank(),
+        legend.position = "none"
+        )+
+  geom_label_repel(data=teamDS4, aes(label=ifelse(season==2022, abbreviation, "")),
+                   nudge_x=.5)
+
+
+print(graph5)
+
+
+
+```
+
+

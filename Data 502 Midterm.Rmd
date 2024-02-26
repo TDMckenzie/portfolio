@@ -1,0 +1,140 @@
+---
+title: "Data 502 Midterm"
+author: "Travis McKenzie"
+date: "2023-10-06"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load the Tidyverse, Import Data & Run Summary
+Loading my tidyverse library, importing my data and utilizing a summary to conduct a quick analysis of the available information.
+
+```{r fast}
+library(tidyverse)
+fast <- read.csv("https://raw.githubusercontent.com/kitadasmalley/Teaching/main/DATA502/FA2023/Data/fastFood2022.csv")
+summary(fast)
+
+```
+
+## Change Units and Assess Values to identify Variables for plotting
+
+Updating units to represent as Millions.  Running some code to confirm which metrics I am using on my X and Y axis.  Also referencing my summary above to confirm some of this information.  Confirming that I want total_units as my X and avg_sales_per_mil as my Y.  Will be mapping size to systemwide_sales.
+edit: ended up coming back to the set-up.  Tropical Smoothie Cafe was giving me grief when attempting to use company in my recreation graph.
+
+```{r details}
+fast<-fast%>%
+mutate(avg_sales_per_mil=avg_sales_per_thousand/1000)
+
+names(fast)
+fast[which.max(fast$total_units),]
+fast[which.max(fast$avg_sales_per_mil),]
+fast[which.max(fast$systemwide_sales),]
+
+mcd=fast %>%
+  filter(company=="McDonald's")
+
+unique(fast$company)
+fast[36,]
+fast=fast%>%
+  mutate(company=str_replace(company, "�", "e"))
+
+head(fast, 50)
+  
+```
+##Construct my recreation graph
+This took a lot longer than I had hoped it would and ended up getting stuck several times.  The initial phase of establishing the plots and getting the basic look was quick.  Once I started getting into the details, things slowed dramatically and became a tad tedious and frustrating.  Doing some of the Datacamp modules again, along with the repeating some of the optional exercises to hopefully identify some skill gaps.
+
+
+```{r graph}
+
+ggplot(fast, aes(total_units, avg_sales_per_mil))+
+  geom_point(alpha=.9, color="#3d4e7f",aes(size=systemwide_sales))+
+  geom_point(data=mcd, size=15, fill="#e50001", color="yellow", pch=21)+
+  scale_size(range=c(1,15))+
+  ggtitle("America's Fast Food Landscape:
+McDonald's Still Reigns Supreme")+
+  coord_fixed(ratio=2500)+
+  scale_x_continuous(expand=c(0,500),breaks=seq(2500,25000, by=2500))+
+  scale_y_continuous(breaks=seq(0,7, by=1))+
+  labs(y="Average Revenue Per Restaurant Unit", x="Total US Stores", caption="Source: The QSR 2023 Top 50")+
+  annotate("text", x=13500, y=4.3, label="McDonald's", color="#e50001", size=4)+
+  annotate("text", x=5500, y=6.7, label="Chick-fil-A", color="#3d4e7f", size=3)+
+  annotate("text", x=2300, y=5.7, label="Raising Cane's", color="#3d4e7f", size=3)+
+  annotate("text", x=2100, y=4.5, label="Shake Shack", color="#3d4e7f", size=3)+
+  annotate("segment", x=2500, y=4.2, xend=450, yend=3.9,color="#3d4e7f", arrow=arrow(length=unit(1,"mm")))+
+  annotate("text", x=3300, y=3.7, label="Whataburger", color="#3d4e7f", size=3)+
+  annotate("text", x=4900, y=3.3, label="Panera Bread", color="#3d4e7f", size=3)+
+  annotate("text", x=5000, y=2.8, label="Chipotle", color="#3d4e7f", size=3)+
+  annotate("text", x=5600, y=2.4, label="Wendy's", color="#3d4e7f", size=3)+
+  annotate("text", x=5000, y=1.6, label="KFC", color="#3d4e7f", size=3)+
+  annotate("segment", x=4900, y=1.5, xend=4700, yend=1.4,color="#3d4e7f", arrow=arrow(length=unit(1,"mm")))+
+  annotate("text", x=9500, y=2, label="Taco Bell", color="#3d4e7f", size=3)+
+  annotate("text", x=11500, y=1.7, label="Burger King", color="#3d4e7f", size=3)+
+  annotate("segment", x=9700, y=1.7, xend=7800, yend=1.5,color="#3d4e7f", arrow=arrow(length=unit(1,"mm")))+
+  annotate("text", x=11000, y=1.3, label="Dunkin'", color="#3d4e7f", size=3)+
+  annotate("text", x=6500, y=.7, label="Pizza Hut", color="#3d4e7f", size=3)+
+  annotate("text", x=10000, y=.5, label="Domino's", color="#3d4e7f", size=3)+
+  annotate("segment", x=9000, y=.7, xend=7400, yend=1.2,color="#3d4e7f", arrow=arrow(length=unit(1,"mm")))+
+  annotate("text", x=16000, y=2.2, label="Starbucks", color="#3d4e7f", size=3)+
+  annotate("text", x=20000, y=.9, label="Subway", color="#3d4e7f", size=3)+
+  annotate("text", x=15000, y=6.2, label="Top 50 Fast Food Chains In America", size=3)+
+  annotate("text", x=15000, y=5.8, label="[Stores vs. sales per unit, bubble size = total sales]", size=2)+
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill="#f2fbfc"),
+    panel.grid.major.x = element_line(color="gray92"),
+    panel.grid.major.y = element_line(color="gray92"),
+    axis.line=element_line(color="darkgray", size=1),
+    axis.ticks=element_blank(),
+    axis.title.x.bottom = element_text(vjust=16, hjust=.8,color="#727373"),
+    axis.title.y.left = element_text(color="#727373"),
+    legend.position="none",
+    plot.background = element_rect(fill="#f2fbfc"),
+    plot.title=element_text(hjust=.5,size=16, color="#378296"),
+    plot.caption = element_text(hjust=-0.1, color="#727373")
+  )
+
+  
+       
+```
+
+##Comments on the Recreation
+I could not figure out how to change the McDonald's bubble and got frustrated and had to concede that adjustment.  The techniques I was trying kept breaking the graph.  Overall I am satisfied with a deeper understanding of leveraging the labels, annotations, themes and formatting.  It isn't perfect, but I think I got pretty close.
+edit:  WOOOOOO I GOT IT!!! Wednesday night!!!  Dug back through the examples and was able to layer it on top.  It may not be perfect, but I freaking got it!  Heck, my solve even got me over the hump related to the yellow ring!  Wahoo!
+
+#Creating an Alternative: A critique of the original
+In recreating the original graph, I found the over-labeling a cumbersome (of course in re-reading the instructions, I only needed to do 5 (insert=Homer"doh").  I found it was really only necessary due to the type of the plot.  I found the original graphic overbroad.  As a refined American, I obviously felt compelled to focus in on "Burgers" and remove some of the clutter from my plot.
+
+
+```{r}
+fast %>%
+  filter(category=="Burger")%>%
+  ggplot(aes(total_units, reorder(company, total_units),color=avg_sales_per_mil))+
+  geom_point(aes(size=systemwide_sales))+
+  scale_size(range=c(1,8), guide="none")+
+  scale_color_continuous(low="#C6AA76", high="#BA0C2F", name="Average Sales per Million")+
+  scale_x_continuous(expand=c(0,500),breaks=seq(2500,25000, by=2500))+
+  ggtitle("American Burger King? McDonald's Still Reigns")+
+  labs(x="Total US Stores (bubble size indicates total sales)", caption="Source: The QSR 2023 Top 50")+
+  theme_minimal()+
+  theme(
+    axis.ticks=element_blank(),
+    axis.title.y = element_blank(),
+    legend.position = "bottom",
+    legend.key.height=unit(.2, 'cm'),
+    axis.title.x.bottom = element_text(vjust=18, hjust=.8)
+  )
+
+
+
+```
+
+
+#Conclusion
+I really got on a role once I was able to troubleshoot some issues.  The formatting of Tropical Smoothie Cafe slowed me down until I went back through some notes and was able to correct the data.  Ultimately, there is more I wanted to do with my recreation, but I ran out of time.  I took inspiration from the Di Cook video when I thought through how I wanted to re-imagine the information.  This got me thinking about running a function and loop (which we just learned in Dr. Gore's class the other day) to run and create multiple graphs by category.  I focused on burgers so I could seize the opportunity to leverage a punny title.  Also, when it comes to fast food, secretly everyone initially thinks of burgers.  I am pretty happy with it aside from some other non-data ink adjustments that I would have made with more time to play.  I really enjoyed this process after I got past some stages of frustration and feeling stuck.  I think the more I practice with this, the more I will grow to enjoy it.  I feel much more in command of ggplot now than I did when I started this assignment.

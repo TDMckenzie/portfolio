@@ -1,0 +1,185 @@
+---
+title: "Data 502 Midterm#2"
+author: "Travis McKenzie"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#load packages
+library(tidyverse)
+library(maps)
+library(tigris)
+options(tigris_use_cache = TRUE)
+library(colorspace)
+library(plotly)
+
+```
+
+### Midterm 2 - 11/15/23
+Read in the data
+
+
+```{r county & k-12}
+
+county<-read.csv("https://raw.githubusercontent.com/kitadasmalley/Teaching/main/DATA502/FA2023/Data/immuneOrCounty.csv")
+k12 <-read.csv("https://raw.githubusercontent.com/kitadasmalley/Teaching/main/DATA502/FA2023/Data/immune_rates.csv")
+k12$Per_Vac_AllVac<-as.numeric(k12$Per_Vac_AllVac)
+
+
+```
+
+## Review Data
+
+
+```{r summary, echo=FALSE}
+head(county)
+head(k12)
+unique(county$County)
+
+```
+
+##Front End
+Load Maps Package and Map Data, Join Data, Create new vectors
+
+
+```{r}
+or_counties = map_data("county", "oregon") %>% 
+  select(lon = long, lat, group, id = subregion)
+
+county = county %>%
+  mutate(id=tolower(County))
+
+ORjoin=full_join(county, or_counties)
+
+ORjoin=ORjoin%>%
+  mutate(all_pct_cut=cut(all_pct, breaks = c(97.1,94.39,92.3,88.6,85)))%>%
+  mutate(all_pct_cut1=cut(all_pct, breaks = c(0,90,100)))
+
+k12=k12%>%
+  mutate(cutVac=cut(Per_Vac_AllVac, breaks=c(100,95,90,80,10)))%>%
+  mutate(cutVac1=cut(Per_Vac_AllVac, breaks=c(0,90,100)))
+
+```
+## Construct Graph
+Basics and experimentation
+
+```{r}
+ORjoin%>%
+ggplot()+
+  geom_polygon(aes(lon, lat, group=group, fill=all_pct))+
+  coord_quickmap()
+```
+
+
+```{r}
+ORjoin%>%
+ggplot()+
+  geom_polygon(aes(lon, lat, group=group, fill=all_pct))+
+  coord_quickmap()+
+  geom_point(data=k12, aes(X,Y))
+  
+
+```
+
+```{r}
+ORjoin%>%
+ggplot()+
+  geom_polygon(aes(lon, lat, group=group, fill=all_pct))+
+  coord_quickmap()+
+  geom_point(data=k12, aes(X,Y, color=Per_Vac_AllVac))+
+  scale_fill_continuous_sequential("Teal", limits=c(85,100))
+
+```
+
+#Final Recreation:
+
+```{r}
+ORjoin%>%
+ggplot()+
+  geom_polygon(color="darkgray",aes(lon, lat, group=group, fill=all_pct_cut))+
+  coord_quickmap()+
+  geom_point(data=k12, aes(X,Y, color=cutVac), na.rm=FALSE)+
+  scale_fill_discrete_sequential("Teal", labels=c("85-88.6", ">88.6-92.3", ">92.3-94.39", ">94.39-97"), name="County Immunization Rates
+All Vaccines")+
+scale_color_discrete_sequential("Heat", na.value="darkgray", order=c(1:4), 
+                                labels=c("Safest (95-100% of students fully
+vaccinated)", 
+                                         "Moderately Vulnerable (90-94.9% 
+of students fully vaccinated)", 
+                                         "More Vulnerable (80-89.9% of students
+fully vaccinated)", 
+                                         "Most Vulnerable(less than 80.0% of 
+students fully vaccinated)", 
+                                         "Site has fewer than 10 children. 
+No data available"), 
+name="K12 Schools
+% Vaccinated (All Vaccines)")+
+  labs(title="   How well-vaccinated is your child care, school and county?",
+       caption="Data from Oregon.gov")+
+  theme_void()
+```
+##Interactivity Attempt
+
+```{r}
+p=ORjoin%>%
+ggplot(aes(County=County))+
+  geom_polygon(color="darkgray",aes(lon, lat, group=group, fill=all_pct_cut))+
+  coord_quickmap()+
+  geom_point(data=k12, aes(X,Y, color=cutVac, 
+                 text=paste(
+                            "Facility:", Site.Name, "<br>",
+                            "District:", School_District, "<br>",
+                            "Vaccine %", Per_Vac_AllVac)))+
+  scale_fill_discrete_sequential("Teal",guide="none")+
+scale_color_discrete_sequential("Heat", na.value="darkgray", order=c(1:4), guide="none")+
+  labs(title="   How well-vaccinated is your child care, school and county?",
+       caption="Data from Oregon.gov")+
+  theme_void()+
+  theme(
+    legend.position = "none"
+  )
+
+ggplotly(p, tooltip=c("County","text"))
+
+
+```
+
+#Alternative Creation
+
+```{r}
+ORjoin%>%
+ggplot()+
+  geom_polygon(color="lightgray", linewidth=1.2,aes(lon, lat, group=group, fill=all_pct_cut1))+
+  coord_quickmap()+
+  geom_point(data=k12, aes(X,Y, color=cutVac1))+
+  scale_fill_discrete_sequential("Light Grays",order=c(2,1), 
+      labels=c("Sub-Optimal Vaccination Levels
+(below 90%)", "Optimal Vaccination Levels
+(at or above 90%)"),
+name="County Immunization Rates
+(All Vaccines)")+
+  scale_color_discrete_sequential("Terrain",na.value="gray", order=c(2,1), 
+      labels=c("Sub-Optimal Vaccination Levels
+(below 90%)",
+               "Optimal Vacciation Levels
+(at or above 90%)",
+               "Insufficient Data
+(below 10%)"),
+name="K12 Schools
+% Vaccinated
+(All Vaccines)")+
+  labs(title="Five Oregon Counties Need Vaccine Support",
+       subtitle = "State department recommends providing support to these counties to enhance immunization rates", caption="Data from Oregon.gov")+
+  theme_void()
+
+```
+
+###Conclusion
+For my alternative, I wanted to tell a story about establishing vaccine availability, education and support to areas that are most likely to be in need.  I established a threshold of 90% as my differentiation between optimal and sub-optimal.  I tested a litany of colors on this map many times and am partially satisfied with the result.  Would also like to figure out how I can draw borders around certain counties to better highlight them and lean on enclosure.  I felt like using a gray palette against a contrasting hue like green allowed me to highlight particular counties to address a concern.
+
+
+

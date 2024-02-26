@@ -1,0 +1,465 @@
+---
+title: "Data 501 Project - Kickstarter Analysis"
+subtitle: "DATA501 Foundations of Data Science Using R"
+author: "Travis McKenzie"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true    
+    toc_depth: 2
+---
+
+```{r setup, echo=FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "C:\\Users\\mcken\\OneDrive\\Documents\\Willamette\\Data 501\\Datasets_501")
+
+library(tidyverse)
+library(car)
+library(GGally)
+library(skimr)
+library(lubridate)
+library(stringr)
+
+thePath="C:\\Users\\mcken\\OneDrive\\Documents\\Willamette\\Data 501\\Datasets_501"
+kickDS=read_csv(paste(thePath,"kickstarter.csv",sep="\\"))
+
+#kickstarter brand colors
+kickGreen="#2bde73"
+kickDark="#0f2105"
+
+```
+
+<center>
+
+![](https://willamette.edu/offices/marketing/images/for-download/everyday-user/compass/large/compass-full-color.jpg){width="67"}
+
+</center>
+
+## ABSTRACT
+
+I have received and evaluated a broad data set which provides numerous variables associated Kickstarter campaigns from 2009 through 2020.  I have applied the data science process to this information to evaluate this data.  Through much exploration, primary questions of interest were identified and addressed.  This required extensive wrangling and observation.  This also required adapting hypothesis tests and modeling.  Please enjoy the findings of this investigation.  The goal is to provide context and insight into how a Kickstarter campaign might be broadly considered successful.
+
+## INTRODUCTION
+
+This is a massive data set with numerous variables and limited contextual information.  The data and methods will be described in later detail later in this analysis.  A Kickstarter campaign is an effort to raise money for a stated project.  These various projects fall within 15 primary categories.  There are also subcategories that may be assigned to better delineate the type of project being pursued.  Campaigns seek backers to fund their projects.  Generally, the project can be successfully launched if the campaign successfully reaches their funding goal with pledged monetary commitment from the backers.  There are also situations where some projects receive an acceptable amount of pledges to still allow the project to move forward, even while falling short of the overall goal.  Even with some successful funding, some projects are still canceled, suspended or fail.  Given the wide range and style of the campaigns, it can be difficult to quantify when a project has been truly successful.  My analysis aims to address what success means in the capacity of a Kickstarter campaign.  It also aims to shed light onto what category or categories might hold the best opportunities for success.  As an introduction, here is the head (or top) of our data set.  
+
+This should grant you an introductory view into how the data is structured:
+
+```{r echo=FALSE}
+
+kickDS=kickDS%>%
+  mutate(
+    GOAL_IN_USD=str_remove_all(GOAL_IN_USD, "\\$"),
+    GOAL_IN_USD=str_remove_all(GOAL_IN_USD, ","),
+    GOAL_IN_USD=as.numeric(GOAL_IN_USD),
+    PLEDGED_IN_USD=str_remove_all(PLEDGED_IN_USD, "\\$"),
+    PLEDGED_IN_USD=str_remove_all(PLEDGED_IN_USD, ","),
+    PLEDGED_IN_USD=as.numeric(PLEDGED_IN_USD),
+    pledgeVgoal=PLEDGED_IN_USD/(ifelse(GOAL_IN_USD==0,1,GOAL_IN_USD))
+  )
+
+head(kickDS)
+
+```
+
+###Primary Questions of Interest
+
+The category of "Film & Video" contained the greatest raw quantity of campaigns at a total of 75,808 total.  The category of "Dance" contained the least quantity of campaigns at 4,298 total.  We can see those totals here:
+
+```{r, echo=FALSE}
+
+kickCatSum=kickDS %>%
+  group_by(CATEGORY)%>%
+  summarize(
+    categoryTotal=n(),
+  )%>%
+  arrange(desc(categoryTotal))
+#break me off a piece of this data set
+
+kickCatSum%>%
+  print(n=15)
+
+```
+
+Using bar graphs, histograms and point graphs, we can observe some time based trends in our data.  
+
+Using our bar graph, we can easily observe that July generated the most attempted Kickstarter launches.  We can also observe that December was the month representing the fewest number of Kickstarter launches.
+
+Using our histogram showing all data from 2009 - 2020.  This very clearly shows that total launches peaked around 2015.
+
+Using our point graph, we can quickly see which years resulted in the most total Kickstarter launches.  The year 2015 was a clear peak.  We can also clearly see that the number of launches has decreased relatively consistently since 2015.  The number of launches for our last year of available data in 2020 was the lowest it has been since 2011.
+
+```{r, echo=FALSE}
+
+kickDStime=kickDS%>%
+  select(CASEID, LAUNCHED_DATE, CATEGORY)%>%
+  mutate(
+    LAUNCHED_DATE=mdy(LAUNCHED_DATE),
+    launchMonth=(month(LAUNCHED_DATE)),
+    launchYear=(year(LAUNCHED_DATE))
+    )
+
+monthComp=kickDStime%>%
+    ggplot(aes(launchMonth))+
+    geom_bar(color=kickDark, fill=kickGreen, na.rm = T)+
+    scale_x_continuous(breaks=1:12,
+                       label=c("Jan", "Feb", "Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec"))+
+    labs(
+      x="Month",
+      y="Launch Count",
+      title="Kickstarter Launch Months",
+      subtitle="From 2009 through 2020"
+    )+
+    theme_minimal()
+
+histoComp=kickDStime%>%
+  ggplot()+
+  geom_histogram(aes(LAUNCHED_DATE), bins=((2020-2009)*12),fill=kickGreen, color=kickDark)+
+  scale_x_date(date_breaks = "2 years", date_labels="%Y",)+
+  labs(
+    x="Date",
+    y="Launch Count",
+    title="Kickstarter Launches Over Time",
+    subtitle="From 2009 through 2020"
+  )+
+  theme_minimal()
+
+yearComp=kickDStime%>%
+  group_by(launchYear)%>%
+  summarize(
+    launchYearTotal=n()
+  )%>%
+    ggplot(aes(y=reorder(launchYear, launchYearTotal), x=launchYearTotal))+
+    geom_point(color=kickGreen, na.rm = T)+
+    labs(
+    x="Total Launches",
+    y="Year",
+    title="Kickstarter Launch Totals By Year",
+    subtitle="From 2009 through 2020"
+  )+
+    theme_minimal()
+
+print(monthComp)
+print(histoComp)
+print(yearComp)
+
+```
+
+Ultimately, the data actually contains information as to whether or not a Kickstarter campaign was successful as you noted in our data sample.  The categorical character variable "STATE" communicates how many of the campaigns were deemed "successful" compared to the other options of "canceled", "failed" and "suspended".  Using the codebook, I was able to see that 38.4% of campaigns were successful and the remaining 61.6% were canceled/failed/suspended.  I can replicate this in my analysis, grouping by CATEGORY, but then also grouping by STATE.  This gives me a very nice view of the success ratios within each CATEGORY, which I can then plot.  I also can use this to establish a rating structure for which CATEGORY achieved the highest percentage of success.  Surprisingly, Dance has the highest percentage of success across the various categories even though I previously established that it had the lowest raw quantity of campaigns earlier in the analysis.  
+
+If I were to quantify success purely as the percent of successful campaigns within each category, then Dance performs the highest.  Technology the lowest performer, by this standard.  This is the overall conclusion I will decide to consider when attempting to apply my hypotheses for evaluating success.  Will also leverage this conclusion to focus my modeling efforts.
+
+However, we can see from these views, trying to quantify success is not so simple.  Please view these exhibits and my further exploration of this concept.
+
+```{r echo=FALSE, message=FALSE}
+
+#unique(kickDS$STATE)
+
+##Which category have the highest percent of "Successful" STATE outcomes
+
+kickSuccessPercent=kickDS%>%
+  group_by(CATEGORY, STATE)%>%
+  summarize(
+    total=n()
+  )%>%
+  mutate(
+    totalPercent=(total/sum(total))*100
+  )
+
+kickSuccessPercent%>%
+  ggplot()+
+  geom_point(aes(y=totalPercent, x=CATEGORY), color=kickGreen)+
+  facet_grid(STATE~., scales="free_y")+
+  theme_minimal()+
+  labs(
+    title="Percentage Comparison",
+    subtitle="Rates of cancellation, failure, success and suspension",
+    y="Percentage",
+    x="Campaign Category"
+  )+
+  theme(
+    axis.text.x = element_text(angle=45, hjust = 1, vjust=1)
+  )
+
+
+kickSuccessPercent2=kickSuccessPercent%>%
+  filter(STATE=="successful")%>%
+  arrange(desc(totalPercent))
+
+kickSuccessPercent2
+
+kickSuccessPercent2%>%
+  ggplot(aes(x=totalPercent, y=reorder(CATEGORY, totalPercent)))+
+  geom_point(color=kickGreen)+
+    labs(
+    title="Percent of Successful Campaigns",
+    subtitle = "Within respective category from 2009 - 2020",
+    y="Category",
+    x="Percent of Campaigns that were successful"
+  )+
+  theme_minimal()
+
+
+```
+
+This is an additional exploration of "success" while evaluating and attempting to map out my analysis. This highlights the litany of different directions that this evaluation could have pursued.
+
+From a raw numerical standpoint, I can see that Music has the greatest total of successful campaign outcomes at 31,854 and completely overshadows the raw numbers of Dance at 2,650 by a factor of 12. If limiting to this variable, Music is the most successful and Journalism the least successful.  However, when limiting to this variable, we are not considering the ratio of failure to success.  We are also not considering the extent of success.  To remedy this, I conducted further analysis.
+
+Earlier in the preparation of the data, I created a pledged vs. goal (referred henceforth as PVG) ratio to create yet another marker of potential success for the campaigns.  It is interesting to note in my statistical summary here; there are two categories that had campaigns that failed to meet goal but still were considered successful.  This included Film & Video, Design and Comics.  This does call into question the nature of the "Successful" STATE.  Within these categories, there could be opportunities to proceed with the project, even with incomplete funding of the goal.  This also poses the question as to whether or not the STATE categorical variable is the best indicator of true success when it comes to evaluating the campaign.  The category of Games has the highest average PVG. I interpret this to mean that pledges for Games campaigns tend to exceed their funding goals at the highest rate, on average.  Successful campaigns for Games also have the highest median PVG.  There is a notable gap in the median PVG between Games and the next highest median. I know median resists outliers, so this helps clarify the middle of the data.  
+
+Attempting to evaluate all categories without limiting to the successful campaigns allows me to view the success in contrast with failure.  This provides interesting context in regard to interpreting and defining Kickstarter success.
+
+For the purpose of this analysis, I am choosing to define success by both limiting to campaigns deemed successful under the STATE variable.  Within that filtered group, I am prioritizing the median PVG due to it's resistance to the numerous outliers within and across categories.  Ultimately, I find the Games category to be the most successful when considering what was pledged vs. the goal and what was being sought.  Within this alternative analysis, Dance would be considered the least successful with the lowest PVG median within the filtered successful STATE.  This conflicts my first conclusion related to success and merits enhanced techniques and hypothesis testing.  I now have established where to direct the focus of my hypothesis testing and modeling approach.
+
+```{r echo=FALSE, message=FALSE}
+
+##Which category has the highest total number of successful STATE overall?  Show how these perform within and across categories.
+
+kickDS%>%
+  group_by(CATEGORY, STATE)%>%
+  summarize(
+    totals=n()
+  )%>%
+  ggplot()+
+  geom_point(aes(y=totals, x=CATEGORY), color=kickGreen)+
+  facet_grid(STATE~., scales="free_y")+
+  labs(
+    title="Total Campaigns across all Categories",
+    x="Category",
+    y="Number of Campaigns"
+  )+
+  theme_minimal()+
+  theme(
+    axis.text.x = element_text(angle=45, hjust = 1, vjust=1)
+  )
+
+kickSuccess=kickDS%>%
+  filter(STATE=="successful")%>%
+  group_by(CATEGORY)%>%
+  summarize(
+    successful=n(),
+    meanPVG=mean(pledgeVgoal),
+    #sdPVG=sd(pledgeVgoal),
+    #minPVG=min(pledgeVgoal),
+    #q1PVG=quantile(pledgeVgoal, .25),
+    medianPVG=median(pledgeVgoal),
+    #q3PVG=quantile(pledgeVgoal, .75),
+    #maxPVG=max(pledgeVgoal)
+  )
+
+kickSuccess%>%
+  ggplot(aes(x=successful, y=reorder(CATEGORY, successful)))+
+  geom_point(color=kickGreen)+
+    labs(
+    title="Total Successful Campaigns",
+    subtitle = "Within successful STATE from 2009 - 2020",
+    y="Category",
+    x="Total Successful Campaigns"
+  )+
+  theme_minimal()
+
+kickSuccess%>%
+  ggplot(aes(x=meanPVG, y=reorder(CATEGORY, meanPVG)))+
+  geom_point(color=kickGreen)+
+  labs(
+    title="Mean PVG",
+    subtitle = "Within successful STATE from 2009 - 2020",
+    y="Category",
+    x="Pledge v. Goal Ratio"
+  )+
+  theme_minimal()
+
+#kickAll=kickDS%>%
+  #group_by(CATEGORY)%>%
+  #summarize(
+    #totalCampaign=n(),
+    #meanPVG=mean(pledgeVgoal),
+    #sdPVG=sd(pledgeVgoal),
+    #minPVG=min(pledgeVgoal),
+    #q1PVG=quantile(pledgeVgoal, .25),
+    #medianPVG=median(pledgeVgoal),
+    #q3PVG=quantile(pledgeVgoal, .75),
+    #maxPVG=max(pledgeVgoal),
+    #varPVG=var(pledgeVgoal)
+  #)
+
+#kickSuccess%>%
+  #arrange(desc(successful))
+
+kickSuccess%>%
+  arrange(desc(meanPVG))
+
+#kickSuccess%>%
+  #arrange(desc(medianPVG))
+
+#kickAll%>%
+  #arrange(desc(totalCampaign))
+
+#kickAll%>%
+  #arrange(desc(meanPVG))
+
+#kickAll%>%
+  #arrange(desc(medianPVG))
+
+```
+
+
+
+## DATA AND METHODOLOGY
+This is global kickstarter data from 2009 - 2020.  Each entry is a different kickstarter.  Each has a category (variety of 15) and subcategory (variety of 161).  Each of those categories and subcategories has a respective numerical id.  The data also contains information the project location name, location state and location county.  There is a unique identifier number (UID) associated with each entry.  There are dates related to when the campaign was lauched as well as the deadline.  Each project has a financial goal and amount that was pledged.  This is expressed in both the original currency and US dollars.  Backers expresses the number of backers associated with the project.  This appears to be the number of contributors who pledged, when contrasted against the amount pledged.  The Names and URLs of each of each campaign are masked to protect respondent anonymity and prevent disclosure risk.  There is a STATE variable which asserts whether or not each campaign was successful, canceled, failed or suspended.
+
+The data is gathered by way of observational study.  The primary response variable was the amount of money pledged for the respective campaign.
+
+There were limitations to the quality of the data.  The lack of names and URLs limits specificity.  Many of the variables were entered as characters.  In particular, when attempting to evaluate the success of the campaigns by evaluating the goal and pledged amounts, the data had to be wrangled to modify the characters into numeric variables.  This included removal of the dollar sign (which was more problematic than initially expected) and removing commas.  When attempting to evaluate the pledge vs. goal ratio, there were also issues with there being campaigns that had no stated goal.
+
+Location information has also been troublesome.  The entries were not sufficiently constrained.  Preference would have been a clear city and/or state, and country.  This would have allowed for better opportunities to map the data and evaluate location trends.
+
+
+
+```{r echo=FALSE}
+#unique(kickDS$CATEGORY)
+#unique(kickDS$SUBCATEGORY)
+#unique(kickDS$STATE)
+#names(kickDS)
+summary(kickDS)
+#skim(kickDS)
+#head(kickDS)
+#kickDS[which.min(kickDS$BACKERS_COUNT),]
+
+
+```
+
+## RESULTS
+
+After conducting a rigorous assessment of the data, the Dance, Music and Games categories each possessed indicators which might indicate a proclivity towards having a successful Kickstarter campaign.  I am primarily interested in whether or not there is a significant difference across categories the particular categories of focus, in meeting or exceeding the goal with pledge funding
+
+I established two primary hypotheses.
+
+Hypothesis A; my null hypothesis is that each category tends to have the same pledge to goal (PVG) ratio on average, when the campaign STATE is marked as successful.  My alternative hypothesis is that there is a significant difference across categories in relationship to the PVG.  For this hypothesis, I require a Tukey HSD test.  I need to evaluate the mean PVG across Dance, Music and Games to determine if they have the same PVG on average, or if there is a meaningful difference in this data.
+
+My density graph allows me to view the distribution of the PVG.  I then run my tests.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+kickDS%>%
+  select(CATEGORY, pledgeVgoal)%>%
+  ggplot(aes(pledgeVgoal, after_stat(density), fill=CATEGORY))+
+  geom_density(color="black", alpha=.5)+
+  scale_x_log10()+
+  labs(
+    title = "Density Comparison of PVG across Categories",
+    subtitle = "x-axis on log scale"
+  )+
+  facet_grid(CATEGORY~., scales="free_y")+
+  theme_void()+
+  theme(
+    legend.position = "none",
+    #panel.grid.major.x = element_line(),
+    axis.text.x.bottom = element_text()
+  )
+
+testFocusOne=kickDS%>%
+  select(CATEGORY, pledgeVgoal)
+
+kickmodelOne=aov(pledgeVgoal~CATEGORY, data=testFocusOne)
+tukeyKick=TukeyHSD(kickmodelOne)
+theTable=tukeyKick$CATEGORY
+
+as_tibble(data.frame(sizeComp=row.names(theTable), theTable)) %>%
+  arrange(p.adj)
+
+```
+Hypothesis B; my null hypothesis is that across the categories of Dance, Music and Games, each is equally likely to have a successful STATE campaign.  My alternative hypothesis is that each is not equally likely to result in a successful STATE campaign.  For this, we will conduct a chisq test of homogeneity.  This requires a table comparison.  We are able to compare and contrast the observed, expected and residuals.
+
+```{r echo=FALSE}
+
+theFocus=c("Dance","Games","Music")
+
+kickChisq=kickSuccessPercent%>%
+  filter(CATEGORY %in% theFocus)%>%
+  select(CATEGORY, STATE, total)%>%
+  pivot_wider(names_from = STATE, values_from = total)%>%
+  column_to_rownames(var = "CATEGORY")
+
+result=chisq.test(kickChisq)
+
+print(result)
+print(result$observed)
+print(result$expected)
+print(result$residuals)
+
+#names(result)
+
+
+
+```
+
+Lastly, considering these findings, we are going to evaluate the Dance category for a relationship to the output of USD pledged.
+
+```{r echo=FALSE, warning=FALSE}
+kickDance=kickDS%>%
+  filter(CATEGORY=="Dance", STATE=="successful")
+
+
+kickDance%>%
+  ggplot(aes(x=BACKERS_COUNT, y=PLEDGED_IN_USD, color=SUBCATEGORY))+
+  geom_smooth(method="lm", se=F)+
+  scale_y_continuous(labels = scales::dollar_format(), trans="log10")+
+  facet_grid(STATE~., scales="free_y")+
+  geom_point()
+
+#logDanceMod=lm(log(PLEDGED_IN_USD)~BACKERS_COUNT+SUBCATEGORY_ID+GOAL_IN_USD, data=kickDance)
+#summary(logDanceMod)
+#plot(logDanceMod)
+#AIC(logDanceMod)
+#vif(logDanceMod)
+
+
+kickDance=kickDance[-c(2647,2650,36,16,6),]
+
+
+logDanceMod2=lm(log(PLEDGED_IN_USD)~BACKERS_COUNT+GOAL_IN_USD, data=kickDance)
+summary(logDanceMod2)
+par(mfrow=c(2,2))
+plot(logDanceMod2)
+par(mfrow=c(1,1))
+vif(logDanceMod2)
+anova(logDanceMod2)
+AIC(logDanceMod2)
+summary.aov(logDanceMod2)
+
+
+##predDance=data.frame(x=seq(0,650,25),exp(predict(logDanceMod2,data.frame(GOAL_IN_USD=seq(0,650,25)),interval="confidence"))) - got stuck when trying to adapt a prediction model to my observed data and rand out of time.  Had multiple other attempts I deleted from the RMD as it was getting overly cluttered with experimentation.
+
+```
+
+
+## CONCLUSION
+In regard to hypothesis A, when comparing our 15 categories, there appears to be no statistical evidence that any one category is a predictor of the pledge v. goal ratio (PVG).  We fail to reject the null and conclude that category is not statistically significant to the amount of money pledged against the goal being sought.
+
+In regard to hypothesis B, when comparing our 3 focus categories, there does appear to be a notable difference in the distribution of the various STATES of canceled, failed, successful and suspended.  Dance does appear to achieve more successful outcomes than expected and our data is statistically significant.  Music also appears to achieve a successful campaign more than expected.  However, Games performs poorer than expected in the observed data.
+
+The findings are quite surprising, particularly when contrasted against the initial exploration of the data.
+
+Dance appears to ultimately be one of most reliably successful categories.  Within that category, I created a multiple linear regression model to evaluate the best predictors of money pledged in US dollars.  Both the backer count and the goal in US dollars turned out to be decent coefficients for fitting a model to the data.  However, there are outliers and leverage points that were impacting the model.  I was able to remove a few of those to improve the fit of the model.  Ultimately, the data available has limits to its predictive capacity with this particular data set.
+
+## APPENDIX
+
+The assumptions for the Tukey HSD test were met:
+1. Observations are indepenedent within and across groups
+2. Each groups observations are normally distributed
+3. There is a homogeneity of variance within groups
+
+The assumptions for the Chi Sq test for homogeneity were met:
+1. Expected counts of all cells >5
+2. Each observation contributes to only 1 cell
+3. Independent groups.
+
+
+Professor Gore,
+I am generally satisfied with my investigation into this data set.  I found it extremely challenging and thought provoking.  I continued to iterate, then reiterate and found myself going in circles trying to consider all of the statistical challenges that are present when trying to craft a cohesive and thoughtful evaluation of this set of data.  I probably got too hung up on analyzing "success" and did not move to the hypotheses and modeling as quickly as I should have.  I hope you enjoyed my analysis as much as I did creating it.  It certainly is not perfect and has a lot of room for improvement but this has given me a lot to consider in how the lessons of the course can be implemented into real world analysis.  I hope that I achieved a reasonable outcome for what was expected for this assignment.  I still find myself needing to go back to my notes regularly and check/re-check my intuitions and assumptions.  There are still some things that I don't feel like I have fully mastered and this project has helped me better identify what I need to spend more time practicing.  Going to spend some of the break playing around with the other categories and working on the modeling process.
+
+Thank you for a very challenging experience.  I hope that this product approximates the expected target of the project.
+
+-Travis McKenzie
